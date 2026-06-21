@@ -1,0 +1,55 @@
+{
+  "stocks": [
+    {
+      "id": 1,
+      "medicament": "Paracétamol 500mg",
+      "stock_actuel": 150,
+      "seuil_alerte": 50,
+      "etat": "Normal"
+    },
+    {
+      "id": 2,
+      "medicament": "Amoxicilline 1g",
+      "stock_actuel": 22,
+      "seuil_alerte": 30,
+      "etat": "Critique"
+    },
+    {
+      "id": 3,
+      "medicament": "Ibuprofène 400mg",
+      "stock_actuel": 0,
+      "seuil_alerte": 40,
+      "etat": "Rupture"
+    }
+  ],
+  "predictions": [
+    {
+      "medicament": "Amoxicilline 1g",
+      "probabilite_rupture": 0.88,
+      "horizon_jours": 2,
+      "IA_modele": "LSTM_Demand_Forecaster"
+    },
+    {
+      "medicament": "Ibuprofène 400mg",
+      "probabilite_rupture": 1.00,
+      "horizon_jours": 0,
+      "IA_modele": "LSTM_Demand_Forecaster"
+    }
+  ],
+  "commandes": [
+    {
+      "order_id": "CMD-REAL-001",
+      "medicament": "Amoxicilline 1g",
+      "quantite": 200,
+      "statut": "EXPÉDIÉ",
+      "agent_emetteur": "pfc_replenishment_agent"
+    },
+    {
+      "order_id": "CMD-REAL-002",
+      "medicament": "Ibuprofène 400mg",
+      "quantite": 350,
+      "statut": "EN_COURS",
+      "agent_emetteur": "pfc_replenishment_agent"
+    }
+  ]
+}
