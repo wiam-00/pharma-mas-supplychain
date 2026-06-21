@@ -6,8 +6,10 @@ from agents.prediction_agent import PredictionAgent
 from agents.decision_agent   import DecisionAgent
 from agents.safety_agent     import SafetyAgent
 from agents.aiaas_agent      import AIaaSAgent
+from agents.supplier_agent   import SupplierAgent   
 
 __all__ = [
     "BaseAgent", "StockAgent", "PredictionAgent",
     "DecisionAgent", "SafetyAgent", "AIaaSAgent",
+    "SupplierAgent",   
 ]

@@ -117,13 +117,51 @@ class DecisionAgent(BaseAgent):
             elif stockout and is_critical:
                 _log_decision("EMERGENCY_TRANSFER", "P1", d)
 
-            # Cas 3 : Stock très bas + critique → commande express
+            # CAS 3 : Stock très bas + critique → commande EXPRESS au SupplierAgent   
             elif stock_pct <= CRITICAL_LOW_STOCK_PCT and is_critical:
                 _log_decision("SUPPLIER_ORDER_EXPRESS", "P2", d)
+                 
+                order_id = f"ORD_{uuid.uuid4().hex[:8].upper()}"
+                await self.agent.send_message(
+                    to_key="supplier",
+                    ontology=ONTOLOGY["SUPPLIER_ORDER"],
+                    payload={
+                        "order_id":        order_id,
+                        "pharmacy_id":     d["pharmacy_id"],
+                        "drug_id":         d["drug_id"],
+                        "drug_name":       d["drug_name"],
+                        "drug_category":   d["drug_category"],
+                        "quantity_ordered": d["max_capacity"] - d["stock_level"],
+                        "urgency":         "EXPRESS",
+                        "unit_price":      d.get("unit_price", 0),
+                        "date":            d["date"],
+                    },
+                    performative="request",
+                    behaviour=self,
+                )
 
-            # Cas 4 : Stock bas non critique → commande standard
+   
+            # CAS 4 : Stock bas non critique → commande STANDARD au SupplierAgent
             elif stock_pct <= LOW_STOCK_PCT:
                 _log_decision("SUPPLIER_ORDER_STANDARD", "P3", d)
+                order_id = f"ORD_{uuid.uuid4().hex[:8].upper()}"
+                await self.agent.send_message(
+                    to_key="supplier",
+                    ontology=ONTOLOGY["SUPPLIER_ORDER"],
+                    payload={
+                        "order_id":        order_id,
+                        "pharmacy_id":     d["pharmacy_id"],
+                        "drug_id":         d["drug_id"],
+                        "drug_name":       d["drug_name"],
+                        "drug_category":   d["drug_category"],
+                        "quantity_ordered": d["max_capacity"] - d["stock_level"],
+                        "urgency":         "STANDARD",
+                        "unit_price":      d.get("unit_price", 0),
+                        "date":            d["date"],
+                    },
+                    performative="request",
+                    behaviour=self,
+                )
 
             # Cas 5 : Transfert flagué dans le dataset
             elif d.get("transfer_needed", 0):
@@ -233,6 +271,49 @@ class DecisionAgent(BaseAgent):
         async def on_end(self):
             self.agent._write_session_report()
 
+
+# BEHAVIOUR 5 — Réception des confirmations de commande depuis SupplierAgent
+class ReceiveSupplierConfirmBehaviour(CyclicBehaviour):
+    async def run(self):
+        msg = await self.receive(timeout=10)
+        if msg is None:
+            return
+        envelope = self.agent.parse_message(msg)
+        if envelope is None:
+            return
+        d = envelope["payload"]
+        logger.info(
+            f"[INFO] ORDER {d.get('status')} | "
+            f"ID={d.get('order_id')} | "
+            f"{d.get('pharmacy_id')} | {d.get('drug_name')} | "
+            f"Delivery={d.get('delivery_date', '?')} | "
+            f"Qty={d.get('quantity', '?')} units"
+        )
+
+    async def on_start(self):
+        logger.info("[INFO] DecisionAgent — ReceiveSupplierConfirmBehaviour STARTED.")
+
+# BEHAVIOUR 6 — Réception des notifications de livraison depuis SupplierAgent
+class ReceiveDeliveryBehaviour(CyclicBehaviour):
+    async def run(self):
+        msg = await self.receive(timeout=10)
+        if msg is None:
+            return
+        envelope = self.agent.parse_message(msg)
+        if envelope is None:
+            return
+        d = envelope["payload"]
+        logger.info(
+            f"[INFO] DELIVERY CONFIRMED | "
+            f"ID={d.get('order_id')} | "
+            f"{d.get('pharmacy_id')} | {d.get('drug_name')} | "
+            f"Qty={d.get('quantity')} units added to stock."
+        )
+        _STATS["DELIVERIES_RECEIVED"] += 1
+
+    async def on_start(self):
+        logger.info("[INFO] DecisionAgent — ReceiveDeliveryBehaviour STARTED.")            
+
     # ── Rapport de session ────────────────────────────────────────────────────
 
     def _write_session_report(self) -> None:
@@ -291,3 +372,15 @@ class DecisionAgent(BaseAgent):
         t_ai.set_metadata("performative", "inform")
         t_ai.set_metadata("ontology", ONTOLOGY["AIAAS_RESPONSE"])
         self.add_behaviour(self.ReceiveAIResponseBehavior(), t_ai)
+        
+         # Template — confirmations fournisseur
+        t_confirm = Template()
+        t_confirm.set_metadata("performative", "inform")
+        t_confirm.set_metadata("ontology", ONTOLOGY["SUPPLIER_CONFIRM"])
+        self.add_behaviour(self.ReceiveSupplierConfirmBehaviour(), t_confirm)
+         # Template — livraisons fournisseur
+        t_delivery = Template()
+        t_delivery.set_metadata("performative", "inform")
+        t_delivery.set_metadata("ontology", ONTOLOGY["SUPPLIER_DELIVERY"])
+        self.add_behaviour(self.ReceiveDeliveryBehaviour(), t_delivery)
+          

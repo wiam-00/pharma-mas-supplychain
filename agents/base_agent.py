@@ -45,7 +45,7 @@ class BaseAgent(Agent, ABC):
     AGENT_NAME: str = "BaseAgent"
 
     def __init__(self, jid: str, password: str):
-        super().__init__(jid, password, auto_register=True)
+        super().__init__(jid, password)
         self.log = _get_agent_logger(self.AGENT_NAME)
 
     # ──────────────────────────────────────────────────────────────────────────

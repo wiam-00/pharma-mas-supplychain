@@ -2,11 +2,13 @@
 main.py — Point d'entrée du Système Multi-Agents Pharma Supply Chain.
 
 Ordre de démarrage (critique pour XMPP) :
-  1. AIaaSAgent     — doit écouter avant que DecisionAgent délègue
-  2. PredictionAgent — doit écouter avant que StockAgent envoie
-  3. SafetyAgent     — idem
-  4. DecisionAgent   — doit écouter avant que StockAgent envoie des alertes
-  5. StockAgent      — lance la simulation (producteur)
+  1. AIaaSAgent         — doit écouter avant que DecisionAgent délègue
+  2. PredictionAgent    — doit écouter avant que StockAgent envoie
+  3. SafetyAgent        — idem
+  4. SupplierAgent      — doit écouter avant que ReplenishmentAgent commande
+  5. ReplenishmentAgent — doit écouter avant que DecisionAgent envoie des alertes de rupture
+  6. DecisionAgent      — doit écouter avant que StockAgent envoie des alertes
+  7. StockAgent         — lance la simulation (producteur)
 
 Usage :
     conda activate pfc_env
@@ -19,12 +21,14 @@ import logging
 import os
 import sys
 
-from agents.stock_agent      import StockAgent
-from agents.prediction_agent import PredictionAgent
-from agents.decision_agent   import DecisionAgent
-from agents.safety_agent     import SafetyAgent
-from agents.aiaas_agent      import AIaaSAgent
-from simulation.env_simulator import PharmacyEnvironment
+from agents.stock_agent         import StockAgent
+from agents.prediction_agent    import PredictionAgent
+from agents.decision_agent      import DecisionAgent
+from agents.safety_agent        import SafetyAgent
+from agents.aiaas_agent         import AIaaSAgent
+from agents.supplier_agent      import SupplierAgent      
+from agents.replenishment_agent import ReplenishmentAgent  # ← NOUVEAU
+from simulation.env_simulator   import PharmacyEnvironment
 from config import AGENTS, STARTUP_DELAY_SECONDS, RESULTS_DIR
 
 # ─── LOGGING ──────────────────────────────────────────────────────────────────
@@ -63,6 +67,14 @@ async def main() -> None:
         jid=AGENTS["safety"]["jid"],
         password=AGENTS["safety"]["password"],
     )
+    supplier_agent = SupplierAgent(
+        jid=AGENTS["supplier"]["jid"],
+        password=AGENTS["supplier"]["password"],
+    )
+    replenishment_agent = ReplenishmentAgent(              # ← NOUVEAU
+        jid=AGENTS["replenishment"]["jid"],
+        password=AGENTS["replenishment"]["password"],
+    )
     decision_agent = DecisionAgent(
         jid=AGENTS["decision"]["jid"],
         password=AGENTS["decision"]["password"],
@@ -81,6 +93,10 @@ async def main() -> None:
     await asyncio.sleep(1)
     await safety_agent.start(auto_register=True)
     await asyncio.sleep(1)
+    await supplier_agent.start(auto_register=True)   
+    await asyncio.sleep(1)
+    await replenishment_agent.start(auto_register=True)    # ← NOUVEAU
+    await asyncio.sleep(1)
     await decision_agent.start(auto_register=True)
 
     logger.info(
@@ -93,7 +109,7 @@ async def main() -> None:
     logger.info("[INFO] Starting StockAgent — simulation begins NOW.")
     await stock_agent.start(auto_register=True)
 
-    logger.info("[INFO] All 5 agents are online. Press Ctrl+C to interrupt.")
+    logger.info("[INFO] All 7 agents are online. Press Ctrl+C to interrupt.")
 
     # ── 5. Boucle d'attente ───────────────────────────────────────────────────
     try:
@@ -108,9 +124,9 @@ async def main() -> None:
 
     # ── 6. Arrêt propre ───────────────────────────────────────────────────────
     logger.info("[INFO] Stopping all agents...")
-    for agent in [stock_agent, decision_agent, safety_agent, pred_agent, aiaas_agent]:
-        if agent.is_alive():
-            await agent.stop()
+    for agent in [stock_agent, decision_agent, replenishment_agent, safety_agent,
+                  pred_agent, aiaas_agent, supplier_agent]:  
+        await agent.stop()
 
     logger.info("=" * 72)
     logger.info(" PHARMA MAS — SIMULATION COMPLETE")
